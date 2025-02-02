@@ -1,496 +1,387 @@
-<!DOCTYPE html>
+const express = require('express');
+const session = require('express-session');
+const bodyParser = require('body-parser');
+const firebaseAdmin = require('firebase-admin');
+const flash = require('connect-flash');
+
+const app = express();
+
+// Middlewares
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(session({
+  secret: 'your_secret_key', // CHANGE THIS for production!
+  resave: false,
+  saveUninitialized: true
+}));
+app.use(flash());
+
+// Initialize Firebase Admin SDK
+const serviceAccount = {
+  "type": "service_account",
+  "project_id": "partypoints-af474",
+  "private_key_id": "818f548f697b9b6b69e8629609639bacd09bf3b2",
+  "private_key": `-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCP1of8BHC78wb5
+y7tHPFodui4aXVWhg6/RZ8jDE7RPghiCRV/BetAYkGLDZZ+BhaJlpXF6oLvNZ38S
+ILOM6Jiq8QuGLzWDpkuydNNcgwfVlW2x3Ai+ic5G2AkyZYGWslsma43mR2kc2KWW
+zthMvzhHLh0FwHkn5byboyaLWKjv4NONBrin0KzfODIFYjD1W3Jr5H1x3aZlU6Fu
+SbJNK7hEiS/oQG47p4qdivkXWPiaIKTcwsinMxnJU8sMdILjnc9Z/6UHl5cL8Fya
+5ejHCC0VSVNjYqdV9Ya8PBaYZZMGIqSfX/P+y7EmyjqUUYpYmTMQmZRT+3HOtonN
+UzIEcLsXAgMBAAECggEAJyydgpTPA1FQMA49pkwYmwoO7l1HKiMManLiqcafEBx1
+gl1UlARX0qjYTTFLPOJhdV+WxXgrTekHIa/IVvMuSTg3FEedQoqzCRpqSkLhilkV
+NCCiPQqZJJBICPK+VYWj75XRYstGJHYYuzcAj/5wXGqBuwRNuwEF2jmYENGHyTTA
+rU9a2CCagb6X6El3pcila26mNt3nhn/q3w7QERV6QRam6iqlr6lL2Aropvb4Knh4
+suZQq3p/SpX58TOTNfKgdpwap6Amc0LQ4L3UwLspa5Vbjq7vFVQWGhx9wj9VT0+K
+2jQgttUlve+eYxf3QZqZNhNooiI51/L8xE6fxHMx0QKBgQDHuDehQIav+gIpAQOG
+uNlEJK063t5+vlq0BOrTureKrwGsjYBbJn2cz++rZ7yT7sDRkew5OJhLTFGLIcKi
+i5/ZGn75J6qXT+wEzF+Wf9sxL2CKNojn+scR9di+zyaMn0+m5KXRTe90MSLt4gHq
+WyrhbzqbqE48A0CCLlGhJDW2rwKBgQC4XwNh0etcbQ/q8UZE7nAXh6CRbA4UcRhu
+wMOjaRxeQSr5mNTCM16SuSEJpZOZcZQ+ssOTsdq/uojRcq7xzjD1RPWAfg4Zt5wo
+I3N33Jyjc4ffDAcdxPSMlKsWDtlmbhkUrl02HHlwP0/G2ydNlXpw4y4U8kIdXe3z
+qpqHLeVcGQKBgQC9EZ5IX2eiTJGi87y8212Dbx03cCk930LKzSTpkAeVmJuDGOn8
+YHHl88u2fpw9h3aubvAsM3GpRvSjPDCf5IJM6xJtGKocWKLc4AVV2nBNHcbM0VfG
+FNhEHnM0H7MkyOSE4ExB2v/nBWVFwgGCNRBhHgVjum9lzMZS9zp7zGW1LQKBgQCs
+8Cp6+e28D2zr4o8YH1OzLnvVjDaUxBS35kZcJD8Axj3qS4nd81NVayNrKg2N07TL
+LuE2y5A1YWHunJUuqUrQ9XMWqKbPRqPKHp6zopKm2rpq5JxUNydwKg9krF8Nrl4G
+QRubow/h0vEgxPZT1s83zlCuQyLy6uVFNxSlkc5fGQKBgCHXAmjO+m0A5RnINCXe
+gecHs7K6LolF9SXNQ6+8vReF0d7W6zwf/xKYvGFyCTTIKkas2RIr7wMSqSJvYwzL
+a2uS06GmOf+aY6QPT+6TNfzcKi6x+FRlz12c5FxU75xd1KAxJy3d8UUpangYeLpE
+wxf6EX5PmxwucxvFeWxvMtZX
+-----END PRIVATE KEY-----`,
+  "client_email": "firebase-adminsdk-fbsvc@partypoints-af474.iam.gserviceaccount.com",
+  "client_id": "103712767953127996369",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40partypoints-af474.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+};
+
+firebaseAdmin.initializeApp({
+  credential: firebaseAdmin.credential.cert(serviceAccount),
+  databaseURL: 'https://partypoints-af474-default-rtdb.firebaseio.com'
+});
+const dbRef = firebaseAdmin.database().ref();
+
+// --- Firebase Helper Functions ---
+
+function ensureUserExists(username) {
+  const userRef = dbRef.child("users").child(username);
+  return userRef.once('value').then(snapshot => {
+    if (!snapshot.exists()) {
+      return userRef.set({
+        points: 0,
+        transactions: {}
+      }).then(() => userRef);
+    }
+    return userRef;
+  });
+}
+
+function authenticateUser(username, password) {
+  return ensureUserExists(username).then(userRef => {
+    return userRef.once('value').then(snapshot => {
+      const userData = snapshot.val();
+      if (!userData.password) {
+        // New user: set password
+        return userRef.update({ password: password }).then(() => {
+          return { success: true, message: "User created and password set." };
+        });
+      } else {
+        if (userData.password === password) {
+          return { success: true, message: "Login successful." };
+        } else {
+          return { success: false, message: "Incorrect password." };
+        }
+      }
+    });
+  });
+}
+
+function addPointsBackend(username, amount, reason) {
+  amount = parseInt(amount);
+  if (isNaN(amount)) {
+    return Promise.resolve("Invalid number. Operation cancelled.");
+  }
+  return ensureUserExists(username).then(userRef => {
+    return userRef.once('value').then(snapshot => {
+      const userData = snapshot.val() || {};
+      const currentPoints = userData.points || 0;
+      const newBalance = currentPoints + amount;
+      return userRef.update({ points: newBalance }).then(() => {
+        const transaction = {
+          time: new Date().toISOString(),
+          type: "Add",
+          amount: amount,
+          description: reason,
+          balance_after: newBalance
+        };
+        return userRef.child("transactions").push(transaction).then(() => {
+          return `${amount} points added. New balance: ${newBalance}`;
+        });
+      });
+    });
+  });
+}
+
+function spendPointsBackend(username, amount, reason) {
+  amount = parseInt(amount);
+  if (isNaN(amount)) {
+    return Promise.resolve("Invalid number. Operation cancelled.");
+  }
+  return ensureUserExists(username).then(userRef => {
+    return userRef.once('value').then(snapshot => {
+      const userData = snapshot.val() || {};
+      const currentPoints = userData.points || 0;
+      if (currentPoints < amount) {
+        return `Not enough points. Your current balance is: ${currentPoints}`;
+      }
+      const newBalance = currentPoints - amount;
+      return userRef.update({ points: newBalance }).then(() => {
+        const transaction = {
+          time: new Date().toISOString(),
+          type: "Spend",
+          amount: amount,
+          description: reason,
+          balance_after: newBalance
+        };
+        return userRef.child("transactions").push(transaction).then(() => {
+          return `${amount} points spent. New balance: ${newBalance}`;
+        });
+      });
+    });
+  });
+}
+
+function getBalance(username) {
+  return ensureUserExists(username).then(userRef => {
+    return userRef.once('value').then(snapshot => {
+      const userData = snapshot.val() || {};
+      return userData.points || 0;
+    });
+  });
+}
+
+function getReport(username) {
+  return ensureUserExists(username).then(userRef => {
+    return userRef.child("transactions").once('value').then(snapshot => {
+      const transactionsObj = snapshot.val();
+      return transactionsObj ? Object.values(transactionsObj) : [];
+    });
+  });
+}
+
+// --- Middleware to Require Login ---
+
+function requireLogin(req, res, next) {
+  if (!req.session.username) {
+    return res.redirect('/login');
+  }
+  next();
+}
+
+// --- HTML Rendering Helper Functions ---
+
+function renderHeader(title, username, messages) {
+  let nav = '';
+  if (username) {
+    nav = `<nav>
+      <ul>
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/add_points">Add Points</a></li>
+        <li><a href="/spend_points">Spend Points</a></li>
+        <li><a href="/show_balance">Show Balance</a></li>
+        <li><a href="/show_report">Show Report</a></li>
+        <li><a href="/logout">Logout</a></li>
+      </ul>
+    </nav>`;
+  }
+  let flashHTML = '';
+  if (messages.error && messages.error.length > 0) {
+    messages.error.forEach(message => {
+      flashHTML += `<div class="flash">${message}</div>`;
+    });
+  }
+  if (messages.success && messages.success.length > 0) {
+    messages.success.forEach(message => {
+      flashHTML += `<div class="flash">${message}</div>`;
+    });
+  }
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>PointPartier (Debug Version)</title>
-  <link rel="preconnect" href="https://fonts.gstatic.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
   <style>
-    /* ----- GLOBAL STYLES ----- */
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: 'Poppins', sans-serif;
-    }
-    body {
-      background: linear-gradient(135deg, #3a1c71, #d76d77, #ffaf7b);
-      color: #fff;
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .container {
-      background: rgba(0, 0, 0, 0.6);
-      border-radius: 8px;
-      padding: 2rem;
-      width: 400px;
-      max-width: 90%;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      text-align: center;
-    }
-    h1 {
-      margin-bottom: 1rem;
-    }
-    h2, h3 {
-      margin: 1rem 0;
-    }
-    label {
-      display: block;
-      text-align: left;
-      margin-bottom: 0.4rem;
-      font-weight: 600;
-    }
-    input, button {
-      margin-bottom: 1rem;
-    }
-    input[type="text"],
-    input[type="password"],
-    input[type="number"] {
-      width: 100%;
-      padding: 0.6rem;
-      border: none;
-      border-radius: 4px;
-      margin-bottom: 1rem;
-    }
-    button {
-      background: #0084ff;
-      border: none;
-      color: #fff;
-      padding: 0.6rem 1.2rem;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: 600;
-      transition: background 0.2s ease;
-    }
-    button:hover {
-      background: #006bd4;
-    }
-    .hidden {
-      display: none;
-    }
-    .alert {
-      background: #e74c3c;
-      color: #fff;
-      padding: 0.8rem;
-      border-radius: 4px;
-      margin-bottom: 1rem;
-      display: none;
-      text-align: left;
-    }
-    .alert.success {
-      background: #2ecc71;
-    }
-    .menu {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      justify-content: center;
-    }
-    .transaction {
-      background: rgba(255, 255, 255, 0.1);
-      padding: 0.8rem;
-      margin-bottom: 0.5rem;
-      border-radius: 4px;
-      text-align: left;
-    }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
+    header, footer { background: #333; color: #fff; padding: 1em; text-align: center; }
+    nav ul { list-style: none; padding: 0; }
+    nav ul li { display: inline; margin: 0 1em; }
+    nav ul li a { color: #fff; text-decoration: none; }
+    .container { padding: 2em; }
+    .flash { background: #ffc; padding: 1em; margin-bottom: 1em; border: 1px solid #dda; }
+    form { max-width: 400px; margin: auto; }
+    form input, form button { width: 100%; padding: 0.5em; margin: 0.5em 0; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>PointPartier</h1>
-    <!-- ALERT BOX -->
-    <div id="alertBox" class="alert"></div>
+<header>
+  <h1>PointPartier</h1>
+  ${nav}
+</header>
+<div class="container">
+${flashHTML}
+`;
+}
 
-    <!-- AUTH FORM -->
-    <div id="authSection">
-      <h2>Login / Sign Up</h2>
-      <label>Username:</label>
-      <input type="text" id="usernameInput" placeholder="Enter username" />
-      <label>Password:</label>
-      <input type="password" id="passwordInput" placeholder="Enter password" />
-      <button id="continueBtn">Continue</button>
-    </div>
-
-    <!-- MAIN MENU -->
-    <div id="menuSection" class="hidden">
-      <h2>Welcome, <span id="displayUsername"></span>!</h2>
-      <div class="menu">
-        <button id="addPointsBtn">Add Points</button>
-        <button id="spendPointsBtn">Spend Points</button>
-        <button id="showBalanceBtn">Show Balance</button>
-        <button id="showReportBtn">Show Report</button>
-        <button id="logoutBtn">Logout</button>
-      </div>
-    </div>
-
-    <!-- ADD POINTS FORM -->
-    <div id="addPointsForm" class="hidden">
-      <h3>Add Points</h3>
-      <label>Points to Add:</label>
-      <input type="number" id="addPointsAmount" />
-      <label>Reason:</label>
-      <input type="text" id="addPointsReason" placeholder="e.g. Bonus" />
-      <button id="confirmAddBtn">Confirm</button>
-      <button id="cancelAddBtn">Cancel</button>
-    </div>
-
-    <!-- SPEND POINTS FORM -->
-    <div id="spendPointsForm" class="hidden">
-      <h3>Spend Points</h3>
-      <label>Points to Spend:</label>
-      <input type="number" id="spendPointsAmount" />
-      <label>Reason/Item:</label>
-      <input type="text" id="spendPointsReason" placeholder="e.g. Reward" />
-      <button id="confirmSpendBtn">Confirm</button>
-      <button id="cancelSpendBtn">Cancel</button>
-    </div>
-
-    <!-- BALANCE DISPLAY -->
-    <div id="balanceDisplay" class="hidden"></div>
-
-    <!-- REPORT DISPLAY -->
-    <div id="reportSection" class="hidden">
-      <h3>Transaction Report</h3>
-      <div id="transactionsContainer"></div>
-      <button id="closeReportBtn">Close Report</button>
-    </div>
-  </div>
-
-  <!-- Firebase (Compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-database-compat.js"></script>
-
-  <script>
-    document.addEventListener('DOMContentLoaded', async () => {
-      // ===================================================
-      // 1) REPLACE THESE FIELDS WITH YOUR REAL CONFIG
-      // ===================================================
-      const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        messagingSenderId: "1234567890",
-        appId: "1:1234567890:web:xxxxxx"
-      };
-      
-      // INIT Firebase
-      firebase.initializeApp(firebaseConfig);
-      const db = firebase.database();
-      console.log("Firebase initialized. Make sure these match your project:");
-      console.log(firebaseConfig);
-
-      // ===================================================
-      // 2) DOM ELEMENTS
-      // ===================================================
-      const alertBox          = document.getElementById('alertBox');
-
-      const authSection       = document.getElementById('authSection');
-      const usernameInput     = document.getElementById('usernameInput');
-      const passwordInput     = document.getElementById('passwordInput');
-      const continueBtn       = document.getElementById('continueBtn');
-
-      const menuSection       = document.getElementById('menuSection');
-      const displayUsername   = document.getElementById('displayUsername');
-      const addPointsBtn      = document.getElementById('addPointsBtn');
-      const spendPointsBtn    = document.getElementById('spendPointsBtn');
-      const showBalanceBtn    = document.getElementById('showBalanceBtn');
-      const showReportBtn     = document.getElementById('showReportBtn');
-      const logoutBtn         = document.getElementById('logoutBtn');
-
-      const addPointsForm     = document.getElementById('addPointsForm');
-      const addPointsAmount   = document.getElementById('addPointsAmount');
-      const addPointsReason   = document.getElementById('addPointsReason');
-      const confirmAddBtn     = document.getElementById('confirmAddBtn');
-      const cancelAddBtn      = document.getElementById('cancelAddBtn');
-
-      const spendPointsForm   = document.getElementById('spendPointsForm');
-      const spendPointsAmount = document.getElementById('spendPointsAmount');
-      const spendPointsReason = document.getElementById('spendPointsReason');
-      const confirmSpendBtn   = document.getElementById('confirmSpendBtn');
-      const cancelSpendBtn    = document.getElementById('cancelSpendBtn');
-
-      const balanceDisplay    = document.getElementById('balanceDisplay');
-
-      const reportSection     = document.getElementById('reportSection');
-      const transactionsContainer = document.getElementById('transactionsContainer');
-      const closeReportBtn    = document.getElementById('closeReportBtn');
-
-      // ===================================================
-      // 3) GLOBAL STATE
-      // ===================================================
-      let activeUser = null; 
-      let attemptsLeft = 3;
-
-      // ===================================================
-      // 4) UTILITIES
-      // ===================================================
-      function showAlert(message, success = false) {
-        alertBox.style.display = 'block';
-        alertBox.textContent = message;
-        if (success) {
-          alertBox.classList.add('success');
-        } else {
-          alertBox.classList.remove('success');
-        }
-        setTimeout(() => {
-          alertBox.style.display = 'none';
-        }, 4000);
-      }
-
-      function hideAllSections() {
-        addPointsForm.classList.add('hidden');
-        spendPointsForm.classList.add('hidden');
-        balanceDisplay.classList.add('hidden');
-        reportSection.classList.add('hidden');
-      }
-
-      function ensureUserExists(username) {
-        return db.ref('users/' + username);
-      }
-
-      // ===================================================
-      // 5) AUTH FLOW
-      // ===================================================
-      continueBtn.addEventListener('click', async () => {
-        const username = usernameInput.value.trim();
-        const password = passwordInput.value.trim();
-        if (!username) {
-          showAlert("Username cannot be empty.");
-          return;
-        }
-        if (!password) {
-          showAlert("Password cannot be empty.");
-          return;
-        }
-        console.log(`Continue clicked with username="${username}", password="${password}".`);
-
-        try {
-          const userRef = ensureUserExists(username);
-          console.log("Getting user data from Realtime DB path:", userRef.toString());
-          const snapshot = await userRef.get();
-          console.log("Snapshot exists?", snapshot.exists());
-          if (!snapshot.exists()) {
-            console.log("No user found; creating new user...");
-            // CREATE NEW USER
-            await userRef.set({
-              password: password,
-              points: 0,
-              transactions: {}
-            });
-            showAlert(`User "${username}" created. Logged in!`, true);
-            activeUser = username;
-            showMenu();
-          } else {
-            // USER EXISTS
-            const userData = snapshot.val() || {};
-            console.log("User data from DB:", userData);
-
-            // If user has no password, set it
-            if (!userData.password) {
-              console.log("No password found in DB; setting password now...");
-              await userRef.update({ password });
-              showAlert("Password set. You are now logged in.", true);
-              activeUser = username;
-              showMenu();
-            } else {
-              // Check password
-              if (userData.password === password) {
-                console.log("Password matches; login successful!");
-                showAlert("Login successful.", true);
-                activeUser = username;
-                showMenu();
-              } else {
-                attemptsLeft--;
-                console.warn("Incorrect password. Attempts left =", attemptsLeft);
-                showAlert(`Incorrect password. Attempts left: ${attemptsLeft}`);
-                if (attemptsLeft <= 0) {
-                  showAlert("Too many incorrect attempts. Reload the page.", false);
-                  continueBtn.disabled = true;
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Error during login or DB read/write:", error);
-          showAlert("Login failed. Check console for details.", false);
-        }
-      });
-
-      function showMenu() {
-        authSection.classList.add('hidden');
-        menuSection.classList.remove('hidden');
-        displayUsername.textContent = activeUser;
-      }
-
-      // ===================================================
-      // 6) MENU BUTTONS
-      // ===================================================
-      addPointsBtn.addEventListener('click', () => {
-        hideAllSections();
-        addPointsForm.classList.remove('hidden');
-      });
-
-      spendPointsBtn.addEventListener('click', () => {
-        hideAllSections();
-        spendPointsForm.classList.remove('hidden');
-      });
-
-      showBalanceBtn.addEventListener('click', async () => {
-        hideAllSections();
-        balanceDisplay.classList.remove('hidden');
-        console.log("Fetching balance for user:", activeUser);
-        try {
-          const userRef = ensureUserExists(activeUser);
-          const snapshot = await userRef.get();
-          const userData = snapshot.val() || {};
-          const balance = userData.points || 0;
-          console.log("Current balance =", balance);
-          balanceDisplay.textContent = `Current Balance: ${balance}`;
-        } catch (err) {
-          console.error("Error fetching balance:", err);
-          showAlert("Failed to fetch balance. Check console.", false);
-        }
-      });
-
-      showReportBtn.addEventListener('click', async () => {
-        hideAllSections();
-        reportSection.classList.remove('hidden');
-        transactionsContainer.innerHTML = '';
-        console.log("Fetching transaction report for user:", activeUser);
-        try {
-          const userRef = ensureUserExists(activeUser);
-          const snap = await userRef.child('transactions').get();
-          const transactions = snap.val() || {};
-          console.log("Transactions fetched:", transactions);
-
-          const entries = Object.values(transactions);
-          if (entries.length === 0) {
-            transactionsContainer.innerHTML = "<p>No transactions found.</p>";
-            return;
-          }
-          entries.forEach(t => {
-            const div = document.createElement('div');
-            div.classList.add('transaction');
-            div.innerHTML = `
-              <p><strong>Time:</strong> ${t.time || ''}</p>
-              <p><strong>Type:</strong> ${t.type || ''}</p>
-              <p><strong>Amount:</strong> ${t.amount || ''}</p>
-              <p><strong>Description:</strong> ${t.description || ''}</p>
-              <p><strong>Balance After:</strong> ${t.balance_after || ''}</p>
-            `;
-            transactionsContainer.appendChild(div);
-          });
-        } catch (err) {
-          console.error("Error fetching transaction report:", err);
-          showAlert("Failed to fetch report. Check console.", false);
-        }
-      });
-
-      logoutBtn.addEventListener('click', () => {
-        location.reload();
-      });
-
-      // ===================================================
-      // 7) ADD POINTS FLOW
-      // ===================================================
-      confirmAddBtn.addEventListener('click', async () => {
-        const amount = parseInt(addPointsAmount.value, 10);
-        const reason = addPointsReason.value.trim();
-        if (isNaN(amount)) {
-          showAlert("Invalid number of points.");
-          return;
-        }
-        console.log(`Adding ${amount} points for user "${activeUser}" reason="${reason}".`);
-        try {
-          const userRef = ensureUserExists(activeUser);
-          const snapshot = await userRef.get();
-          const userData = snapshot.val() || {};
-          const currentPoints = userData.points || 0;
-          const newBalance = currentPoints + amount;
-
-          await userRef.update({ points: newBalance });
-
-          // Log transaction
-          const transaction = {
-            time: new Date().toLocaleString(),
-            type: "Add",
-            amount,
-            description: reason,
-            balance_after: newBalance
-          };
-          await userRef.child('transactions').push(transaction);
-
-          showAlert(`${amount} points added. New balance: ${newBalance}`, true);
-          hideAllSections();
-        } catch (err) {
-          console.error("Error adding points:", err);
-          showAlert("Failed to add points. Check console.", false);
-        }
-      });
-
-      cancelAddBtn.addEventListener('click', () => {
-        hideAllSections();
-      });
-
-      // ===================================================
-      // 8) SPEND POINTS FLOW
-      // ===================================================
-      confirmSpendBtn.addEventListener('click', async () => {
-        const amount = parseInt(spendPointsAmount.value, 10);
-        const reason = spendPointsReason.value.trim();
-        if (isNaN(amount)) {
-          showAlert("Invalid number of points.");
-          return;
-        }
-        console.log(`Spending ${amount} points for user "${activeUser}" reason="${reason}".`);
-        try {
-          const userRef = ensureUserExists(activeUser);
-          const snapshot = await userRef.get();
-          const userData = snapshot.val() || {};
-          const currentPoints = userData.points || 0;
-
-          if (currentPoints < amount) {
-            showAlert(`Not enough points. You have ${currentPoints}.`);
-            return;
-          }
-
-          const newBalance = currentPoints - amount;
-          await userRef.update({ points: newBalance });
-
-          // Log transaction
-          const transaction = {
-            time: new Date().toLocaleString(),
-            type: "Spend",
-            amount,
-            description: reason,
-            balance_after: newBalance
-          };
-          await userRef.child('transactions').push(transaction);
-
-          showAlert(`${amount} points spent. New balance: ${newBalance}`, true);
-          hideAllSections();
-        } catch (err) {
-          console.error("Error spending points:", err);
-          showAlert("Failed to spend points. Check console.", false);
-        }
-      });
-
-      cancelSpendBtn.addEventListener('click', () => {
-        hideAllSections();
-      });
-
-      // ===================================================
-      // 9) REPORT CLOSE
-      // ===================================================
-      closeReportBtn.addEventListener('click', () => {
-        hideAllSections();
-      });
-    }); // end DOMContentLoaded
-  </script>
+function renderFooter() {
+  return `
+</div>
+<footer>
+  <p>&copy; 2025 PointPartier. All rights reserved.</p>
+</footer>
 </body>
-</html>
+</html>`;
+}
+
+// --- Routes ---
+
+// Home page
+app.get('/', (req, res) => {
+  if (req.session.username) {
+    return res.redirect('/dashboard');
+  }
+  const headerHTML = renderHeader('Home - PointPartier', null, req.flash());
+  const content = `<h2>Welcome to PointPartier</h2>
+  <p>Please <a href="/login">login</a> to continue.</p>`;
+  res.send(headerHTML + content + renderFooter());
+});
+
+// Login (GET)
+app.get('/login', (req, res) => {
+  const headerHTML = renderHeader('Login - PointPartier', null, req.flash());
+  const content = `<h2>Login / Register</h2>
+  <form method="POST" action="/login">
+    <input type="text" name="username" placeholder="Username" required>
+    <input type="password" name="password" placeholder="Password" required>
+    <button type="submit">Continue</button>
+  </form>`;
+  res.send(headerHTML + content + renderFooter());
+});
+
+// Login (POST)
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    req.flash('error', 'Username and password required.');
+    return res.redirect('/login');
+  }
+  authenticateUser(username, password).then(result => {
+    if (result.success) {
+      req.session.username = username;
+      req.flash('success', result.message);
+      res.redirect('/dashboard');
+    } else {
+      req.flash('error', result.message);
+      res.redirect('/login');
+    }
+  });
+});
+
+// Logout
+app.get('/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/');
+});
+
+// Dashboard
+app.get('/dashboard', requireLogin, (req, res) => {
+  getBalance(req.session.username).then(balance => {
+    const headerHTML = renderHeader('Dashboard - PointPartier', req.session.username, req.flash());
+    const content = `<h2>Dashboard</h2>
+    <p>Hello, ${req.session.username}!</p>
+    <p>Your current balance is: ${balance}</p>
+    <p>Choose an option from the navigation menu above.</p>`;
+    res.send(headerHTML + content + renderFooter());
+  });
+});
+
+// Add Points (GET)
+app.get('/add_points', requireLogin, (req, res) => {
+  const headerHTML = renderHeader('Add Points - PointPartier', req.session.username, req.flash());
+  const content = `<h2>Add Points</h2>
+  <form method="POST" action="/add_points">
+    <input type="number" name="amount" placeholder="Amount" required>
+    <input type="text" name="reason" placeholder="Reason" required>
+    <button type="submit">Add Points</button>
+  </form>`;
+  res.send(headerHTML + content + renderFooter());
+});
+
+// Add Points (POST)
+app.post('/add_points', requireLogin, (req, res) => {
+  const { amount, reason } = req.body;
+  addPointsBackend(req.session.username, amount, reason).then(message => {
+    req.flash('success', message);
+    res.redirect('/dashboard');
+  });
+});
+
+// Spend Points (GET)
+app.get('/spend_points', requireLogin, (req, res) => {
+  const headerHTML = renderHeader('Spend Points - PointPartier', req.session.username, req.flash());
+  const content = `<h2>Spend Points</h2>
+  <form method="POST" action="/spend_points">
+    <input type="number" name="amount" placeholder="Amount" required>
+    <input type="text" name="reason" placeholder="Reason" required>
+    <button type="submit">Spend Points</button>
+  </form>`;
+  res.send(headerHTML + content + renderFooter());
+});
+
+// Spend Points (POST)
+app.post('/spend_points', requireLogin, (req, res) => {
+  const { amount, reason } = req.body;
+  spendPointsBackend(req.session.username, amount, reason).then(message => {
+    req.flash('success', message);
+    res.redirect('/dashboard');
+  });
+});
+
+// Show Balance
+app.get('/show_balance', requireLogin, (req, res) => {
+  getBalance(req.session.username).then(balance => {
+    const headerHTML = renderHeader('Your Balance - PointPartier', req.session.username, req.flash());
+    const content = `<h2>Your Balance</h2>
+    <p>Your current balance is: ${balance}</p>`;
+    res.send(headerHTML + content + renderFooter());
+  });
+});
+
+// Transaction Report
+app.get('/show_report', requireLogin, (req, res) => {
+  getReport(req.session.username).then(transactions => {
+    const headerHTML = renderHeader('Transaction Report - PointPartier', req.session.username, req.flash());
+    let content = `<h2>Transaction Report</h2>`;
+    if (transactions.length > 0) {
+      content += '<ul>';
+      transactions.forEach(t => {
+        content += `<li>
+<strong>${t.time}</strong> - ${t.type} - Amount: ${t.amount} -
+${t.description} - Balance After: ${t.balance_after}
+</li>`;
+      });
+      content += '</ul>';
+    } else {
+      content += `<p>No transactions found.</p>`;
+    }
+    res.send(headerHTML + content + renderFooter());
+  });
+});
+
+// --- Start the Server ---
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server started on port ${PORT}`);
+});
