@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>PointPartier (Debug Version)</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ----- GLOBAL STYLES ----- */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Poppins', sans-serif;
+    }
+    body {
+      background: linear-gradient(135deg, #3a1c71, #d76d77, #ffaf7b);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 8px;
+      padding: 2rem;
+      width: 400px;
+      max-width: 90%;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    h1 {
+      margin-bottom: 1rem;
+    }
+    h2, h3 {
+      margin: 1rem 0;
+    }
+    label {
+      display: block;
+      text-align: left;
+      margin-bottom: 0.4rem;
+      font-weight: 600;
+    }
+    input, button {
+      margin-bottom: 1rem;
+    }
+    input[type="text"],
+    input[type="password"],
+    input[type="number"] {
+      width: 100%;
+      padding: 0.6rem;
+      border: none;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+    button {
+      background: #0084ff;
+      border: none;
+      color: #fff;
+      padding: 0.6rem 1.2rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s ease;
+    }
+    button:hover {
+      background: #006bd4;
+    }
+    .hidden {
+      display: none;
+    }
+    .alert {
+      background: #e74c3c;
+      color: #fff;
+      padding: 0.8rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+      display: none;
+      text-align: left;
+    }
+    .alert.success {
+      background: #2ecc71;
+    }
+    .menu {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .transaction {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.8rem;
+      margin-bottom: 0.5rem;
+      border-radius: 4px;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PointPartier</h1>
+    <!-- ALERT BOX -->
+    <div id="alertBox" class="alert"></div>
+
+    <!-- AUTH FORM -->
+    <div id="authSection">
+      <h2>Login / Sign Up</h2>
+      <label>Username:</label>
+      <input type="text" id="usernameInput" placeholder="Enter username" />
+      <label>Password:</label>
+      <input type="password" id="passwordInput" placeholder="Enter password" />
+      <button id="continueBtn">Continue</button>
+    </div>
+
+    <!-- MAIN MENU -->
+    <div id="menuSection" class="hidden">
+      <h2>Welcome, <span id="displayUsername"></span>!</h2>
+      <div class="menu">
+        <button id="addPointsBtn">Add Points</button>
+        <button id="spendPointsBtn">Spend Points</button>
+        <button id="showBalanceBtn">Show Balance</button>
+        <button id="showReportBtn">Show Report</button>
+        <button id="logoutBtn">Logout</button>
+      </div>
+    </div>
+
+    <!-- ADD POINTS FORM -->
+    <div id="addPointsForm" class="hidden">
+      <h3>Add Points</h3>
+      <label>Points to Add:</label>
+      <input type="number" id="addPointsAmount" />
+      <label>Reason:</label>
+      <input type="text" id="addPointsReason" placeholder="e.g. Bonus" />
+      <button id="confirmAddBtn">Confirm</button>
+      <button id="cancelAddBtn">Cancel</button>
+    </div>
+
+    <!-- SPEND POINTS FORM -->
+    <div id="spendPointsForm" class="hidden">
+      <h3>Spend Points</h3>
+      <label>Points to Spend:</label>
+      <input type="number" id="spendPointsAmount" />
+      <label>Reason/Item:</label>
+      <input type="text" id="spendPointsReason" placeholder="e.g. Reward" />
+      <button id="confirmSpendBtn">Confirm</button>
+      <button id="cancelSpendBtn">Cancel</button>
+    </div>
+
+    <!-- BALANCE DISPLAY -->
+    <div id="balanceDisplay" class="hidden"></div>
+
+    <!-- REPORT DISPLAY -->
+    <div id="reportSection" class="hidden">
+      <h3>Transaction Report</h3>
+      <div id="transactionsContainer"></div>
+      <button id="closeReportBtn">Close Report</button>
+    </div>
+  </div>
+
+  <!-- Firebase (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.17.2/firebase-database-compat.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      // ===================================================
+      // 1) REPLACE THESE FIELDS WITH YOUR REAL CONFIG
+      // ===================================================
+      const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "1234567890",
+        appId: "1:1234567890:web:xxxxxx"
+      };
+      
+      // INIT Firebase
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
+      console.log("Firebase initialized. Make sure these match your project:");
+      console.log(firebaseConfig);
+
+      // ===================================================
+      // 2) DOM ELEMENTS
+      // ===================================================
+      const alertBox          = document.getElementById('alertBox');
+
+      const authSection       = document.getElementById('authSection');
+      const usernameInput     = document.getElementById('usernameInput');
+      const passwordInput     = document.getElementById('passwordInput');
+      const continueBtn       = document.getElementById('continueBtn');
+
+      const menuSection       = document.getElementById('menuSection');
+      const displayUsername   = document.getElementById('displayUsername');
+      const addPointsBtn      = document.getElementById('addPointsBtn');
+      const spendPointsBtn    = document.getElementById('spendPointsBtn');
+      const showBalanceBtn    = document.getElementById('showBalanceBtn');
+      const showReportBtn     = document.getElementById('showReportBtn');
+      const logoutBtn         = document.getElementById('logoutBtn');
+
+      const addPointsForm     = document.getElementById('addPointsForm');
+      const addPointsAmount   = document.getElementById('addPointsAmount');
+      const addPointsReason   = document.getElementById('addPointsReason');
+      const confirmAddBtn     = document.getElementById('confirmAddBtn');
+      const cancelAddBtn      = document.getElementById('cancelAddBtn');
+
+      const spendPointsForm   = document.getElementById('spendPointsForm');
+      const spendPointsAmount = document.getElementById('spendPointsAmount');
+      const spendPointsReason = document.getElementById('spendPointsReason');
+      const confirmSpendBtn   = document.getElementById('confirmSpendBtn');
+      const cancelSpendBtn    = document.getElementById('cancelSpendBtn');
+
+      const balanceDisplay    = document.getElementById('balanceDisplay');
+
+      const reportSection     = document.getElementById('reportSection');
+      const transactionsContainer = document.getElementById('transactionsContainer');
+      const closeReportBtn    = document.getElementById('closeReportBtn');
+
+      // ===================================================
+      // 3) GLOBAL STATE
+      // ===================================================
+      let activeUser = null; 
+      let attemptsLeft = 3;
+
+      // ===================================================
+      // 4) UTILITIES
+      // ===================================================
+      function showAlert(message, success = false) {
+        alertBox.style.display = 'block';
+        alertBox.textContent = message;
+        if (success) {
+          alertBox.classList.add('success');
+        } else {
+          alertBox.classList.remove('success');
+        }
+        setTimeout(() => {
+          alertBox.style.display = 'none';
+        }, 4000);
+      }
+
+      function hideAllSections() {
+        addPointsForm.classList.add('hidden');
+        spendPointsForm.classList.add('hidden');
+        balanceDisplay.classList.add('hidden');
+        reportSection.classList.add('hidden');
+      }
+
+      function ensureUserExists(username) {
+        return db.ref('users/' + username);
+      }
+
+      // ===================================================
+      // 5) AUTH FLOW
+      // ===================================================
+      continueBtn.addEventListener('click', async () => {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        if (!username) {
+          showAlert("Username cannot be empty.");
+          return;
+        }
+        if (!password) {
+          showAlert("Password cannot be empty.");
+          return;
+        }
+        console.log(`Continue clicked with username="${username}", password="${password}".`);
+
+        try {
+          const userRef = ensureUserExists(username);
+          console.log("Getting user data from Realtime DB path:", userRef.toString());
+          const snapshot = await userRef.get();
+          console.log("Snapshot exists?", snapshot.exists());
+          if (!snapshot.exists()) {
+            console.log("No user found; creating new user...");
+            // CREATE NEW USER
+            await userRef.set({
+              password: password,
+              points: 0,
+              transactions: {}
+            });
+            showAlert(`User "${username}" created. Logged in!`, true);
+            activeUser = username;
+            showMenu();
+          } else {
+            // USER EXISTS
+            const userData = snapshot.val() || {};
+            console.log("User data from DB:", userData);
+
+            // If user has no password, set it
+            if (!userData.password) {
+              console.log("No password found in DB; setting password now...");
+              await userRef.update({ password });
+              showAlert("Password set. You are now logged in.", true);
+              activeUser = username;
+              showMenu();
+            } else {
+              // Check password
+              if (userData.password === password) {
+                console.log("Password matches; login successful!");
+                showAlert("Login successful.", true);
+                activeUser = username;
+                showMenu();
+              } else {
+                attemptsLeft--;
+                console.warn("Incorrect password. Attempts left =", attemptsLeft);
+                showAlert(`Incorrect password. Attempts left: ${attemptsLeft}`);
+                if (attemptsLeft <= 0) {
+                  showAlert("Too many incorrect attempts. Reload the page.", false);
+                  continueBtn.disabled = true;
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Error during login or DB read/write:", error);
+          showAlert("Login failed. Check console for details.", false);
+        }
+      });
+
+      function showMenu() {
+        authSection.classList.add('hidden');
+        menuSection.classList.remove('hidden');
+        displayUsername.textContent = activeUser;
+      }
+
+      // ===================================================
+      // 6) MENU BUTTONS
+      // ===================================================
+      addPointsBtn.addEventListener('click', () => {
+        hideAllSections();
+        addPointsForm.classList.remove('hidden');
+      });
+
+      spendPointsBtn.addEventListener('click', () => {
+        hideAllSections();
+        spendPointsForm.classList.remove('hidden');
+      });
+
+      showBalanceBtn.addEventListener('click', async () => {
+        hideAllSections();
+        balanceDisplay.classList.remove('hidden');
+        console.log("Fetching balance for user:", activeUser);
+        try {
+          const userRef = ensureUserExists(activeUser);
+          const snapshot = await userRef.get();
+          const userData = snapshot.val() || {};
+          const balance = userData.points || 0;
+          console.log("Current balance =", balance);
+          balanceDisplay.textContent = `Current Balance: ${balance}`;
+        } catch (err) {
+          console.error("Error fetching balance:", err);
+          showAlert("Failed to fetch balance. Check console.", false);
+        }
+      });
+
+      showReportBtn.addEventListener('click', async () => {
+        hideAllSections();
+        reportSection.classList.remove('hidden');
+        transactionsContainer.innerHTML = '';
+        console.log("Fetching transaction report for user:", activeUser);
+        try {
+          const userRef = ensureUserExists(activeUser);
+          const snap = await userRef.child('transactions').get();
+          const transactions = snap.val() || {};
+          console.log("Transactions fetched:", transactions);
+
+          const entries = Object.values(transactions);
+          if (entries.length === 0) {
+            transactionsContainer.innerHTML = "<p>No transactions found.</p>";
+            return;
+          }
+          entries.forEach(t => {
+            const div = document.createElement('div');
+            div.classList.add('transaction');
+            div.innerHTML = `
+              <p><strong>Time:</strong> ${t.time || ''}</p>
+              <p><strong>Type:</strong> ${t.type || ''}</p>
+              <p><strong>Amount:</strong> ${t.amount || ''}</p>
+              <p><strong>Description:</strong> ${t.description || ''}</p>
+              <p><strong>Balance After:</strong> ${t.balance_after || ''}</p>
+            `;
+            transactionsContainer.appendChild(div);
+          });
+        } catch (err) {
+          console.error("Error fetching transaction report:", err);
+          showAlert("Failed to fetch report. Check console.", false);
+        }
+      });
+
+      logoutBtn.addEventListener('click', () => {
+        location.reload();
+      });
+
+      // ===================================================
+      // 7) ADD POINTS FLOW
+      // ===================================================
+      confirmAddBtn.addEventListener('click', async () => {
+        const amount = parseInt(addPointsAmount.value, 10);
+        const reason = addPointsReason.value.trim();
+        if (isNaN(amount)) {
+          showAlert("Invalid number of points.");
+          return;
+        }
+        console.log(`Adding ${amount} points for user "${activeUser}" reason="${reason}".`);
+        try {
+          const userRef = ensureUserExists(activeUser);
+          const snapshot = await userRef.get();
+          const userData = snapshot.val() || {};
+          const currentPoints = userData.points || 0;
+          const newBalance = currentPoints + amount;
+
+          await userRef.update({ points: newBalance });
+
+          // Log transaction
+          const transaction = {
+            time: new Date().toLocaleString(),
+            type: "Add",
+            amount,
+            description: reason,
+            balance_after: newBalance
+          };
+          await userRef.child('transactions').push(transaction);
+
+          showAlert(`${amount} points added. New balance: ${newBalance}`, true);
+          hideAllSections();
+        } catch (err) {
+          console.error("Error adding points:", err);
+          showAlert("Failed to add points. Check console.", false);
+        }
+      });
+
+      cancelAddBtn.addEventListener('click', () => {
+        hideAllSections();
+      });
+
+      // ===================================================
+      // 8) SPEND POINTS FLOW
+      // ===================================================
+      confirmSpendBtn.addEventListener('click', async () => {
+        const amount = parseInt(spendPointsAmount.value, 10);
+        const reason = spendPointsReason.value.trim();
+        if (isNaN(amount)) {
+          showAlert("Invalid number of points.");
+          return;
+        }
+        console.log(`Spending ${amount} points for user "${activeUser}" reason="${reason}".`);
+        try {
+          const userRef = ensureUserExists(activeUser);
+          const snapshot = await userRef.get();
+          const userData = snapshot.val() || {};
+          const currentPoints = userData.points || 0;
+
+          if (currentPoints < amount) {
+            showAlert(`Not enough points. You have ${currentPoints}.`);
+            return;
+          }
+
+          const newBalance = currentPoints - amount;
+          await userRef.update({ points: newBalance });
+
+          // Log transaction
+          const transaction = {
+            time: new Date().toLocaleString(),
+            type: "Spend",
+            amount,
+            description: reason,
+            balance_after: newBalance
+          };
+          await userRef.child('transactions').push(transaction);
+
+          showAlert(`${amount} points spent. New balance: ${newBalance}`, true);
+          hideAllSections();
+        } catch (err) {
+          console.error("Error spending points:", err);
+          showAlert("Failed to spend points. Check console.", false);
+        }
+      });
+
+      cancelSpendBtn.addEventListener('click', () => {
+        hideAllSections();
+      });
+
+      // ===================================================
+      // 9) REPORT CLOSE
+      // ===================================================
+      closeReportBtn.addEventListener('click', () => {
+        hideAllSections();
+      });
+    }); // end DOMContentLoaded
+  </script>
+</body>
+</html>
