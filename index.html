@@ -1,47 +1,56 @@
+// app.js
 const express = require('express');
 const session = require('express-session');
 const flash = require('connect-flash');
 const firebaseAdmin = require('firebase-admin');
 
+// 1) Create Express app
 const app = express();
 
-// 1. Use Express’s built-in body parsing
+// 2) Use Express's built-in body parsing
 app.use(express.urlencoded({ extended: false }));
 
-// 2. Session & Flash
+// 3) Set up session & flash
 app.use(session({
-  secret: 'your_secret_key', // CHANGE THIS for production!
+  secret: 'your_secret_key', // Change this for production
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: true
 }));
 app.use(flash());
 
-// If behind a proxy (like Heroku), uncomment:
-// app.set('trust proxy', 1);
-
-// 3. Firebase Admin initialization
-// ----- If using environment variables (preferred) -----
-// const serviceAccount = {
-//   type: process.env.FIREBASE_TYPE,
-//   project_id: process.env.FIREBASE_PROJECT_ID,
-//   private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-//   private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-//   client_email: process.env.FIREBASE_CLIENT_EMAIL,
-//   client_id: process.env.FIREBASE_CLIENT_ID,
-//   auth_uri: "https://accounts.google.com/o/oauth2/auth",
-//   token_uri: "https://oauth2.googleapis.com/token",
-//   auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-//   client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL
-// };
-
-// ----- Inline approach (make sure formatting is 100% correct!) -----
+// 4) Firebase Admin initialization
+//    NOTE: This won't run on GitHub Pages. You need a Node environment.
 const serviceAccount = {
   type: "service_account",
   project_id: "partypoints-af474",
   private_key_id: "818f548f697b9b6b69e8629609639bacd09bf3b2",
   private_key: `-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCP1of8BHC78wb5
-...etc...
+y7tHPFodui4aXVWhg6/RZ8jDE7RPghiCRV/BetAYkGLDZZ+BhaJlpXF6oLvNZ38S
+ILOM6Jiq8QuGLzWDpkuydNNcgwfVlW2x3Ai+ic5G2AkyZYGWslsma43mR2kc2KWW
+zthMvzhHLh0FwHkn5byboyaLWKjv4NONBrin0KzfODIFYjD1W3Jr5H1x3aZlU6Fu
+SbJNK7hEiS/oQG47p4qdivkXWPiaIKTcwsinMxnJU8sMdILjnc9Z/6UHl5cL8Fya
+5ejHCC0VSVNjYqdV9Ya8PBaYZZMGIqSfX/P+y7EmyjqUUYpYmTMQmZRT+3HOtonN
+UzIEcLsXAgMBAAECggEAJyydgpTPA1FQMA49pkwYmwoO7l1HKiMManLiqcafEBx1
+gl1UlARX0qjYTTFLPOJhdV+WxXgrTekHIa/IVvMuSTg3FEedQoqzCRpqSkLhilkV
+NCCiPQqZJJBICPK+VYWj75XRYstGJHYYuzcAj/5wXGqBuwRNuwEF2jmYENGHyTTA
+rU9a2CCagb6X6El3pcila26mNt3nhn/q3w7QERV6QRam6iqlr6lL2Aropvb4Knh4
+suZQq3p/SpX58TOTNfKgdpwap6Amc0LQ4L3UwLspa5Vbjq7vFVQWGhx9wj9VT0+K
+2jQgttUlve+eYxf3QZqZNhNooiI51/L8xE6fxHMx0QKBgQDHuDehQIav+gIpAQOG
+uNlEJK063t5+vlq0BOrTureKrwGsjYBbJn2cz++rZ7yT7sDRkew5OJhLTFGLIcKi
+i5/ZGn75J6qXT+wEzF+Wf9sxL2CKNojn+scR9di+zyaMn0+m5KXRTe90MSLt4gHq
+WyrhbzqbqE48A0CCLlGhJDW2rwKBgQC4XwNh0etcbQ/q8UZE7nAXh6CRbA4UcRhu
+wMOjaRxeQSr5mNTCM16SuSEJpZOZcZQ+ssOTsdq/uojRcq7xzjD1RPWAfg4Zt5wo
+I3N33Jyjc4ffDAcdxPSMlKsWDtlmbhkUrl02HHlwP0/G2ydNlXpw4y4U8kIdXe3z
+qpqHLeVcGQKBgQC9EZ5IX2eiTJGi87y8212Dbx03cCk930LKzSTpkAeVmJuDGOn8
+YHHl88u2fpw9h3aubvAsM3GpRvSjPDCf5IJM6xJtGKocWKLc4AVV2nBNHcbM0VfG
+FNhEHnM0H7MkyOSE4ExB2v/nBWVFwgGCNRBhHgVjum9lzMZS9zp7zGW1LQKBgQCs
+8Cp6+e28D2zr4o8YH1OzLnvVjDaUxBS35kZcJD8Axj3qS4nd81NVayNrKg2N07TL
+LuE2y5A1YWHunJUuqUrQ9XMWqKbPRqPKHp6zopKm2rpq5JxUNydwKg9krF8Nrl4G
+QRubow/h0vEgxPZT1s83zlCuQyLy6uVFNxSlkc5fGQKBgCHXAmjO+m0A5RnINCXe
+gecHs7K6LolF9SXNQ6+8vReF0d7W6zwf/xKYvGFyCTTIKkas2RIr7wMSqSJvYwzL
+a2uS06GmOf+aY6QPT+6TNfzcKi6x+FRlz12c5FxU75xd1KAxJy3d8UUpangYeLpE
+wxf6EX5PmxwucxvFeWxvMtZX
 -----END PRIVATE KEY-----`,
   client_email: "firebase-adminsdk-fbsvc@partypoints-af474.iam.gserviceaccount.com",
   client_id: "103712767953127996369",
@@ -49,17 +58,20 @@ MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCP1of8BHC78wb5
   token_uri: "https://oauth2.googleapis.com/token",
   auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
   client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40partypoints-af474.iam.gserviceaccount.com",
-  "universe_domain": "googleapis.com"
+  universe_domain: "googleapis.com"
 };
 
 firebaseAdmin.initializeApp({
   credential: firebaseAdmin.credential.cert(serviceAccount),
   databaseURL: 'https://partypoints-af474-default-rtdb.firebaseio.com'
 });
-
 const dbRef = firebaseAdmin.database().ref();
 
-// === Helper Functions ===
+// ----------------------------------------------------------------------------------
+// EVERYTHING BELOW: Helper functions + Single-file "templates" + Routes
+// ----------------------------------------------------------------------------------
+
+// -- Firebase Helper Functions --
 function ensureUserExists(username) {
   const userRef = dbRef.child("users").child(username);
   return userRef.once('value').then(snapshot => {
@@ -78,9 +90,9 @@ function authenticateUser(username, password) {
     return userRef.once('value').then(snapshot => {
       const userData = snapshot.val();
       if (!userData.password) {
-        // If no password, set it
+        // New user: set password
         return userRef.update({ password: password }).then(() => {
-          return { success: true, message: "New user created and password set." };
+          return { success: true, message: "User created and password set." };
         });
       } else {
         if (userData.password === password) {
@@ -93,8 +105,80 @@ function authenticateUser(username, password) {
   });
 }
 
-// ... addPointsBackend, spendPointsBackend, getBalance, getReport (unchanged) ...
+function addPointsBackend(username, amount, reason) {
+  amount = parseInt(amount);
+  if (isNaN(amount)) {
+    return Promise.resolve("Invalid number. Operation cancelled.");
+  }
+  return ensureUserExists(username).then(userRef => {
+    return userRef.once('value').then(snapshot => {
+      const userData = snapshot.val() || {};
+      const currentPoints = userData.points || 0;
+      const newBalance = currentPoints + amount;
+      return userRef.update({ points: newBalance }).then(() => {
+        const transaction = {
+          time: new Date().toISOString(),
+          type: "Add",
+          amount: amount,
+          description: reason,
+          balance_after: newBalance
+        };
+        return userRef.child("transactions").push(transaction).then(() => {
+          return `${amount} points added. New balance: ${newBalance}`;
+        });
+      });
+    });
+  });
+}
 
+function spendPointsBackend(username, amount, reason) {
+  amount = parseInt(amount);
+  if (isNaN(amount)) {
+    return Promise.resolve("Invalid number. Operation cancelled.");
+  }
+  return ensureUserExists(username).then(userRef => {
+    return userRef.once('value').then(snapshot => {
+      const userData = snapshot.val() || {};
+      const currentPoints = userData.points || 0;
+      if (currentPoints < amount) {
+        return `Not enough points. Your current balance is: ${currentPoints}`;
+      }
+      const newBalance = currentPoints - amount;
+      return userRef.update({ points: newBalance }).then(() => {
+        const transaction = {
+          time: new Date().toISOString(),
+          type: "Spend",
+          amount: amount,
+          description: reason,
+          balance_after: newBalance
+        };
+        return userRef.child("transactions").push(transaction).then(() => {
+          return `${amount} points spent. New balance: ${newBalance}`;
+        });
+      });
+    });
+  });
+}
+
+function getBalance(username) {
+  return ensureUserExists(username).then(userRef => {
+    return userRef.once('value').then(snapshot => {
+      const userData = snapshot.val() || {};
+      return userData.points || 0;
+    });
+  });
+}
+
+function getReport(username) {
+  return ensureUserExists(username).then(userRef => {
+    return userRef.child("transactions").once('value').then(snapshot => {
+      const transactionsObj = snapshot.val();
+      return transactionsObj ? Object.values(transactionsObj) : [];
+    });
+  });
+}
+
+// --- Middleware to Require Login ---
 function requireLogin(req, res, next) {
   if (!req.session.username) {
     return res.redirect('/login');
@@ -102,7 +186,9 @@ function requireLogin(req, res, next) {
   next();
 }
 
-// === Render Helpers ===
+// ----------------------------------------------------------------------------------
+// Single-File "Views": We'll define two helper functions to inject HTML blocks
+// ----------------------------------------------------------------------------------
 function renderHeader(title, username, messages) {
   let nav = '';
   if (username) {
@@ -132,18 +218,18 @@ function renderHeader(title, username, messages) {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>${title}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f4f4f4; }
-    header, footer { background: #333; color: #fff; padding: 1em; text-align: center; }
-    nav ul { list-style: none; padding: 0; }
-    nav ul li { display: inline; margin: 0 1em; }
-    nav ul li a { color: #fff; text-decoration: none; }
+    body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; }
+    header, footer { background:#333; color:#fff; padding:1em; text-align:center; }
+    nav ul { list-style:none; padding:0; }
+    nav ul li { display:inline; margin:0 1em; }
+    nav ul li a { color:#fff; text-decoration:none; }
     .container { padding: 2em; }
-    .flash { background: #ffc; padding: 1em; margin-bottom: 1em; border: 1px solid #dda; }
-    form { max-width: 400px; margin: auto; }
-    form input, form button { width: 100%; padding: 0.5em; margin: 0.5em 0; }
+    .flash { background:#ffc; padding:1em; margin-bottom:1em; border:1px solid #dda; }
+    form { max-width:400px; margin:auto; }
+    form input, form button { width:100%; padding:0.5em; margin:0.5em 0; }
   </style>
 </head>
 <body>
@@ -166,14 +252,18 @@ function renderFooter() {
 </html>`;
 }
 
-// === Routes ===
+// ----------------------------------------------------------------------------------
+// Routes (All in one file!)
+// ----------------------------------------------------------------------------------
+
+// Home page
 app.get('/', (req, res) => {
   if (req.session.username) {
     return res.redirect('/dashboard');
   }
   const headerHTML = renderHeader('Home - PointPartier', null, req.flash());
   const content = `<h2>Welcome to PointPartier</h2>
-  <p>Please <a href="/login">login</a> to continue.</p>`;
+    <p>Please <a href="/login">login</a> to continue.</p>`;
   res.send(headerHTML + content + renderFooter());
 });
 
@@ -196,8 +286,6 @@ app.post('/login', (req, res) => {
     req.flash('error', 'Username and password required.');
     return res.redirect('/login');
   }
-
-  // ADD CATCH BLOCK
   authenticateUser(username, password)
     .then(result => {
       if (result.success) {
@@ -210,12 +298,13 @@ app.post('/login', (req, res) => {
       }
     })
     .catch(err => {
-      console.error('Login Error:', err);
-      req.flash('error', 'An unexpected error occurred, please try again.');
+      console.error("Login Error:", err);
+      req.flash('error', 'An unexpected error occurred. Please try again.');
       res.redirect('/login');
     });
 });
 
+// Logout
 app.get('/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/');
@@ -227,14 +316,14 @@ app.get('/dashboard', requireLogin, (req, res) => {
     .then(balance => {
       const headerHTML = renderHeader('Dashboard - PointPartier', req.session.username, req.flash());
       const content = `<h2>Dashboard</h2>
-        <p>Hello, ${req.session.username}!</p>
-        <p>Your current balance is: ${balance}</p>
-        <p>Choose an option from the navigation menu above.</p>`;
+      <p>Hello, ${req.session.username}!</p>
+      <p>Your current balance is: ${balance}</p>
+      <p>Choose an option from the navigation menu above.</p>`;
       res.send(headerHTML + content + renderFooter());
     })
     .catch(err => {
-      console.error('Balance Error:', err);
-      req.flash('error', 'Failed to load balance.');
+      console.error("Dashboard Error:", err);
+      req.flash('error', 'Failed to fetch balance.');
       res.redirect('/');
     });
 });
@@ -260,7 +349,7 @@ app.post('/add_points', requireLogin, (req, res) => {
       res.redirect('/dashboard');
     })
     .catch(err => {
-      console.error('Add Points Error:', err);
+      console.error("Add Points Error:", err);
       req.flash('error', 'Failed to add points.');
       res.redirect('/dashboard');
     });
@@ -287,7 +376,7 @@ app.post('/spend_points', requireLogin, (req, res) => {
       res.redirect('/dashboard');
     })
     .catch(err => {
-      console.error('Spend Points Error:', err);
+      console.error("Spend Points Error:", err);
       req.flash('error', 'Failed to spend points.');
       res.redirect('/dashboard');
     });
@@ -299,11 +388,11 @@ app.get('/show_balance', requireLogin, (req, res) => {
     .then(balance => {
       const headerHTML = renderHeader('Your Balance - PointPartier', req.session.username, req.flash());
       const content = `<h2>Your Balance</h2>
-        <p>Your current balance is: ${balance}</p>`;
+      <p>Your current balance is: ${balance}</p>`;
       res.send(headerHTML + content + renderFooter());
     })
     .catch(err => {
-      console.error('Show Balance Error:', err);
+      console.error("Show Balance Error:", err);
       req.flash('error', 'Failed to fetch balance.');
       res.redirect('/dashboard');
     });
@@ -319,9 +408,9 @@ app.get('/show_report', requireLogin, (req, res) => {
         content += '<ul>';
         transactions.forEach(t => {
           content += `<li>
-            <strong>${t.time}</strong> - ${t.type} - Amount: ${t.amount} -
-            ${t.description} - Balance After: ${t.balance_after}
-          </li>`;
+<strong>${t.time}</strong> - ${t.type} - Amount: ${t.amount} -
+${t.description} - Balance After: ${t.balance_after}
+</li>`;
         });
         content += '</ul>';
       } else {
@@ -330,13 +419,15 @@ app.get('/show_report', requireLogin, (req, res) => {
       res.send(headerHTML + content + renderFooter());
     })
     .catch(err => {
-      console.error('Show Report Error:', err);
-      req.flash('error', 'Failed to load report.');
+      console.error("Show Report Error:", err);
+      req.flash('error', 'Failed to load transactions.');
       res.redirect('/dashboard');
     });
 });
 
-// Start Server
+// ----------------------------------------------------------------------------------
+// Start the server (Not on GitHub Pages! Must be on Node environment)
+// ----------------------------------------------------------------------------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
