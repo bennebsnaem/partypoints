@@ -1,25 +1,34 @@
-// app.js
+/*******************
+ * app.js
+ * To run locally: 
+ *   1) npm install express express-session connect-flash firebase-admin
+ *   2) node app.js
+ * Then go to http://localhost:3000
+ ********************/
+ 
 const express = require('express');
 const session = require('express-session');
 const flash = require('connect-flash');
 const firebaseAdmin = require('firebase-admin');
 
-// 1) Create Express app
+// Create the Express app
 const app = express();
 
-// 2) Use Express's built-in body parsing
+// Middleware to parse form data
 app.use(express.urlencoded({ extended: false }));
 
-// 3) Set up session & flash
+// Setup session & flash
 app.use(session({
-  secret: 'your_secret_key', // Change this for production
+  secret: 'your_secret_key', // Change this in production
   resave: false,
   saveUninitialized: true
 }));
 app.use(flash());
 
-// 4) Firebase Admin initialization
-//    NOTE: This won't run on GitHub Pages. You need a Node environment.
+// If behind a proxy (like on Render, Heroku, etc.), you might need:
+// app.set('trust proxy', 1);
+
+// Firebase Admin initialization
 const serviceAccount = {
   type: "service_account",
   project_id: "partypoints-af474",
@@ -57,8 +66,7 @@ wxf6EX5PmxwucxvFeWxvMtZX
   auth_uri: "https://accounts.google.com/o/oauth2/auth",
   token_uri: "https://oauth2.googleapis.com/token",
   auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-  client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40partypoints-af474.iam.gserviceaccount.com",
-  universe_domain: "googleapis.com"
+  client_x509_cert_url: "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40partypoints-af474.iam.gserviceaccount.com"
 };
 
 firebaseAdmin.initializeApp({
@@ -68,10 +76,8 @@ firebaseAdmin.initializeApp({
 const dbRef = firebaseAdmin.database().ref();
 
 // ----------------------------------------------------------------------------------
-// EVERYTHING BELOW: Helper functions + Single-file "templates" + Routes
+// Helper Functions (Firebase operations)
 // ----------------------------------------------------------------------------------
-
-// -- Firebase Helper Functions --
 function ensureUserExists(username) {
   const userRef = dbRef.child("users").child(username);
   return userRef.once('value').then(snapshot => {
@@ -119,7 +125,7 @@ function addPointsBackend(username, amount, reason) {
         const transaction = {
           time: new Date().toISOString(),
           type: "Add",
-          amount: amount,
+          amount,
           description: reason,
           balance_after: newBalance
         };
@@ -148,7 +154,7 @@ function spendPointsBackend(username, amount, reason) {
         const transaction = {
           time: new Date().toISOString(),
           type: "Spend",
-          amount: amount,
+          amount,
           description: reason,
           balance_after: newBalance
         };
@@ -178,7 +184,7 @@ function getReport(username) {
   });
 }
 
-// --- Middleware to Require Login ---
+// Middleware to require login
 function requireLogin(req, res, next) {
   if (!req.session.username) {
     return res.redirect('/login');
@@ -187,38 +193,39 @@ function requireLogin(req, res, next) {
 }
 
 // ----------------------------------------------------------------------------------
-// Single-File "Views": We'll define two helper functions to inject HTML blocks
+// "Views": Single-file version with inline HTML templates
 // ----------------------------------------------------------------------------------
 function renderHeader(title, username, messages) {
   let nav = '';
   if (username) {
-    nav = `<nav>
-      <ul>
-        <li><a href="/dashboard">Dashboard</a></li>
-        <li><a href="/add_points">Add Points</a></li>
-        <li><a href="/spend_points">Spend Points</a></li>
-        <li><a href="/show_balance">Show Balance</a></li>
-        <li><a href="/show_report">Show Report</a></li>
-        <li><a href="/logout">Logout</a></li>
-      </ul>
-    </nav>`;
+    nav = `
+      <nav>
+        <ul>
+          <li><a href="/dashboard">Dashboard</a></li>
+          <li><a href="/add_points">Add Points</a></li>
+          <li><a href="/spend_points">Spend Points</a></li>
+          <li><a href="/show_balance">Show Balance</a></li>
+          <li><a href="/show_report">Show Report</a></li>
+          <li><a href="/logout">Logout</a></li>
+        </ul>
+      </nav>`;
   }
   let flashHTML = '';
   if (messages.error && messages.error.length > 0) {
-    messages.error.forEach(message => {
-      flashHTML += `<div class="flash">${message}</div>`;
-    });
+    for (const msg of messages.error) {
+      flashHTML += `<div class="flash">${msg}</div>`;
+    }
   }
   if (messages.success && messages.success.length > 0) {
-    messages.success.forEach(message => {
-      flashHTML += `<div class="flash">${message}</div>`;
-    });
+    for (const msg of messages.success) {
+      flashHTML += `<div class="flash">${msg}</div>`;
+    }
   }
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>${title}</title>
   <style>
     body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f4f4f4; }
@@ -226,7 +233,7 @@ function renderHeader(title, username, messages) {
     nav ul { list-style:none; padding:0; }
     nav ul li { display:inline; margin:0 1em; }
     nav ul li a { color:#fff; text-decoration:none; }
-    .container { padding: 2em; }
+    .container { padding:2em; }
     .flash { background:#ffc; padding:1em; margin-bottom:1em; border:1px solid #dda; }
     form { max-width:400px; margin:auto; }
     form input, form button { width:100%; padding:0.5em; margin:0.5em 0; }
@@ -238,7 +245,7 @@ function renderHeader(title, username, messages) {
   ${nav}
 </header>
 <div class="container">
-${flashHTML}
+  ${flashHTML}
 `;
 }
 
@@ -253,7 +260,7 @@ function renderFooter() {
 }
 
 // ----------------------------------------------------------------------------------
-// Routes (All in one file!)
+// Routes
 // ----------------------------------------------------------------------------------
 
 // Home page
@@ -262,7 +269,8 @@ app.get('/', (req, res) => {
     return res.redirect('/dashboard');
   }
   const headerHTML = renderHeader('Home - PointPartier', null, req.flash());
-  const content = `<h2>Welcome to PointPartier</h2>
+  const content = `
+    <h2>Welcome to PointPartier</h2>
     <p>Please <a href="/login">login</a> to continue.</p>`;
   res.send(headerHTML + content + renderFooter());
 });
@@ -270,12 +278,13 @@ app.get('/', (req, res) => {
 // Login (GET)
 app.get('/login', (req, res) => {
   const headerHTML = renderHeader('Login - PointPartier', null, req.flash());
-  const content = `<h2>Login / Register</h2>
-  <form method="POST" action="/login">
-    <input type="text" name="username" placeholder="Username" required>
-    <input type="password" name="password" placeholder="Password" required>
-    <button type="submit">Continue</button>
-  </form>`;
+  const content = `
+    <h2>Login / Register</h2>
+    <form method="POST" action="/login">
+      <input type="text" name="username" placeholder="Username" required />
+      <input type="password" name="password" placeholder="Password" required />
+      <button type="submit">Continue</button>
+    </form>`;
   res.send(headerHTML + content + renderFooter());
 });
 
@@ -291,10 +300,10 @@ app.post('/login', (req, res) => {
       if (result.success) {
         req.session.username = username;
         req.flash('success', result.message);
-        res.redirect('/dashboard');
+        return res.redirect('/dashboard');
       } else {
         req.flash('error', result.message);
-        res.redirect('/login');
+        return res.redirect('/login');
       }
     })
     .catch(err => {
@@ -315,10 +324,11 @@ app.get('/dashboard', requireLogin, (req, res) => {
   getBalance(req.session.username)
     .then(balance => {
       const headerHTML = renderHeader('Dashboard - PointPartier', req.session.username, req.flash());
-      const content = `<h2>Dashboard</h2>
-      <p>Hello, ${req.session.username}!</p>
-      <p>Your current balance is: ${balance}</p>
-      <p>Choose an option from the navigation menu above.</p>`;
+      const content = `
+        <h2>Dashboard</h2>
+        <p>Hello, ${req.session.username}!</p>
+        <p>Your current balance is: ${balance}</p>
+        <p>Choose an option from the navigation menu above.</p>`;
       res.send(headerHTML + content + renderFooter());
     })
     .catch(err => {
@@ -331,12 +341,13 @@ app.get('/dashboard', requireLogin, (req, res) => {
 // Add Points (GET)
 app.get('/add_points', requireLogin, (req, res) => {
   const headerHTML = renderHeader('Add Points - PointPartier', req.session.username, req.flash());
-  const content = `<h2>Add Points</h2>
-  <form method="POST" action="/add_points">
-    <input type="number" name="amount" placeholder="Amount" required>
-    <input type="text" name="reason" placeholder="Reason" required>
-    <button type="submit">Add Points</button>
-  </form>`;
+  const content = `
+    <h2>Add Points</h2>
+    <form method="POST" action="/add_points">
+      <input type="number" name="amount" placeholder="Amount" required />
+      <input type="text" name="reason" placeholder="Reason" required />
+      <button type="submit">Add Points</button>
+    </form>`;
   res.send(headerHTML + content + renderFooter());
 });
 
@@ -358,12 +369,13 @@ app.post('/add_points', requireLogin, (req, res) => {
 // Spend Points (GET)
 app.get('/spend_points', requireLogin, (req, res) => {
   const headerHTML = renderHeader('Spend Points - PointPartier', req.session.username, req.flash());
-  const content = `<h2>Spend Points</h2>
-  <form method="POST" action="/spend_points">
-    <input type="number" name="amount" placeholder="Amount" required>
-    <input type="text" name="reason" placeholder="Reason" required>
-    <button type="submit">Spend Points</button>
-  </form>`;
+  const content = `
+    <h2>Spend Points</h2>
+    <form method="POST" action="/spend_points">
+      <input type="number" name="amount" placeholder="Amount" required />
+      <input type="text" name="reason" placeholder="Reason" required />
+      <button type="submit">Spend Points</button>
+    </form>`;
   res.send(headerHTML + content + renderFooter());
 });
 
@@ -387,8 +399,9 @@ app.get('/show_balance', requireLogin, (req, res) => {
   getBalance(req.session.username)
     .then(balance => {
       const headerHTML = renderHeader('Your Balance - PointPartier', req.session.username, req.flash());
-      const content = `<h2>Your Balance</h2>
-      <p>Your current balance is: ${balance}</p>`;
+      const content = `
+        <h2>Your Balance</h2>
+        <p>Your current balance is: ${balance}</p>`;
       res.send(headerHTML + content + renderFooter());
     })
     .catch(err => {
@@ -406,12 +419,12 @@ app.get('/show_report', requireLogin, (req, res) => {
       let content = `<h2>Transaction Report</h2>`;
       if (transactions.length > 0) {
         content += '<ul>';
-        transactions.forEach(t => {
+        for (const t of transactions) {
           content += `<li>
-<strong>${t.time}</strong> - ${t.type} - Amount: ${t.amount} -
-${t.description} - Balance After: ${t.balance_after}
-</li>`;
-        });
+            <strong>${t.time}</strong> - ${t.type} - Amount: ${t.amount} -
+            ${t.description} - Balance After: ${t.balance_after}
+          </li>`;
+        }
         content += '</ul>';
       } else {
         content += `<p>No transactions found.</p>`;
@@ -425,10 +438,9 @@ ${t.description} - Balance After: ${t.balance_after}
     });
 });
 
-// ----------------------------------------------------------------------------------
-// Start the server (Not on GitHub Pages! Must be on Node environment)
-// ----------------------------------------------------------------------------------
+// Start the server (cannot run on GitHub Pages—use Node environment)
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server started on port ${PORT}`);
 });
+
